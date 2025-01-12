@@ -56,6 +56,16 @@ def execute_task2(product_list):
     create_product_file(output_path, product_id_list)
     print(f'Task2 Done, please see the best-products.txt in {os.path.dirname(output_path)}')
 
+def execute_task3(product_list):
+    print('Creating Task3 Result...')
+    filtered_product_list = list(filter(
+        lambda product: product.get('is_i5') == True,
+        product_list
+    ))
+    product_price_list = [product.get('price') for product in filtered_product_list]
+    result = round(sum(product_price_list) / len(product_price_list), 2)
+    print(f'Task3 Result: {result}')
+
 if __name__ == '__main__':
     # 1. get data by calling API
     # 2. get total page and calling API each page and getting product data
@@ -70,3 +80,4 @@ if __name__ == '__main__':
 
     execute_task1(product_list)
     execute_task2(product_list)
+    execute_task3(product_list)

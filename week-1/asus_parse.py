@@ -43,6 +43,19 @@ def execute_task1(product_list):
     create_product_file(output_path, product_id_list)
     print(f'Task1 Done, please see the {file_name} in {os.path.dirname(output_path)}')
 
+def execute_task2(product_list):
+    print('Creating Task2 Result...')
+    file_name = 'best-products.txt'
+    filtered_product_list = list(filter(
+        lambda product: product.get('review', 0) >= 1 and product.get('rating', -1) > 4.9, 
+        product_list
+    ))
+    product_id_list = [product.get('id') for product in filtered_product_list]
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(current_dir, file_name)
+    create_product_file(output_path, product_id_list)
+    print(f'Task2 Done, please see the best-products.txt in {os.path.dirname(output_path)}')
+
 if __name__ == '__main__':
     # 1. get data by calling API
     # 2. get total page and calling API each page and getting product data
@@ -56,3 +69,4 @@ if __name__ == '__main__':
     product_list = [clean_product_data(product) for product in product_data_list]
 
     execute_task1(product_list)
+    execute_task2(product_list)

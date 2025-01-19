@@ -100,6 +100,106 @@ class Coordinate:
         polygon_points = [Point(x, y) for x, y in points]
         return Polygon(polygon_points)
 
+@dataclass(slots=True)
+class Enemy:
+    position: Point
+    direction: Vector
+    life_points: int = 10
+    
+    @property
+    def is_dead(self) -> bool:
+        return self.life_points <= 0
+    
+    def move_forward(self) -> None:
+        if not self.is_dead:
+            target_position_x = self.position.x + self.direction.x
+            target_position_y = self.position.y + self.direction.y
+            self.position = Point(target_position_x, target_position_y)
+    
+    def take_damage(self, damage: int) -> None:
+        if not self.is_dead:
+            self.life_points -= damage
+
+class Tower(Circle):
+    def __init__(self, center: Point, radius: float, power: int):
+        super().__init__(center=center, radius=radius)
+        self.power = power
+    
+    def is_in_range(self, enemy: Enemy) -> bool:
+        if enemy.is_dead:
+            return False
+        return self.center.distance_to(enemy.position) <= self.radius
+    
+    def attack(self, enemy: Enemy) -> bool:
+        if self.is_in_range(enemy):
+            enemy.take_damage(self.power)
+            return True
+        return False
+
+class BasicTower(Tower):
+    def __init__(self, center: Point):
+        super().__init__(center=center, radius=2, power=1)
+
+class AdvancedTower(Tower):
+    def __init__(self, center: Point):
+        super().__init__(center=center, radius=4, power=2)
+
+class WarMap:
+    def __init__(self):
+        self.coordinate = Coordinate()
+        self.enemies: list[Enemy] = []
+        self.basic_towers: list[BasicTower] = []
+        self.advanced_towers: list[AdvancedTower] = []
+    
+    def add_enemy(self, position: tuple[float, float], direction: tuple[float, float]) -> Enemy:
+        enemy_position = self.coordinate.create_point(position[0], position[1])
+        enemy_direction = Vector(direction[0], direction[1])
+        enemy = Enemy(enemy_position, enemy_direction)
+        self.enemies.append(enemy)
+        return enemy
+    
+    def add_basic_tower(self, x: float, y: float) -> BasicTower:
+        tower_position = self.coordinate.create_point(x, y)
+        tower = BasicTower(tower_position)
+        self.basic_towers.append(tower)
+        return tower
+    
+    def add_advanced_tower(self, x: float, y: float) -> AdvancedTower:
+        tower_position = self.coordinate.create_point(x, y)
+        tower = AdvancedTower(tower_position)
+        self.advanced_towers.append(tower)
+        return tower
+
+class Game:
+    def __init__(self, war_map: WarMap):
+        self.war_map = war_map
+        self.current_turn = 0
+    
+    def execute_turn(self) -> None:
+        self.move_enemies()
+        self.towers_attack()
+        self.current_turn += 1
+    
+    def move_enemies(self) -> None:
+        for enemy in self.war_map.enemies:
+            enemy.move_forward()
+    
+    def towers_attack(self) -> None:
+        for tower in self.war_map.basic_towers + self.war_map.advanced_towers:
+            for enemy in self.war_map.enemies:
+                tower.attack(enemy)
+    
+    def run(self, turns: int = 10) -> None:
+        for _ in range(turns):
+            self.execute_turn()
+        self.print_result()
+    
+    def print_result(self) -> None:
+        for index, enemy in enumerate(self.war_map.enemies, 1):
+            status = '(Dead)' if enemy.is_dead == True else ''
+            print(f'{status} E{index}: Position({enemy.position.x}, {enemy.position.y}), Life Points: {enemy.life_points}')
+
+
 def execute_task1():
     coordinate = Coordinate()
     line_a = coordinate.create_line(-6, 1, 2, 4)
@@ -124,5 +224,26 @@ def execute_task1():
     perimeter = polygon_a.get_perimeter()
     print(f'Print the perimeter of Polygon A. {perimeter}')
 
+
+def execute_task2():
+    war_map = WarMap()
+    
+    war_map.add_enemy((-10, 2), (2, -1))  # E1
+    war_map.add_enemy((-8, 0), (3, 1))    # E2
+    war_map.add_enemy((-9, -1), (3, 0))   # E3
+    
+    war_map.add_basic_tower(-3, 2)   # T1
+    war_map.add_basic_tower(-1, -2)  # T2
+    war_map.add_basic_tower(4, 2)    # T3
+    war_map.add_basic_tower(7, 0)    # T4
+    
+    war_map.add_advanced_tower(1, 1)   # A1
+    war_map.add_advanced_tower(4, -3)  # A2
+    
+    game = Game(war_map)
+    game.run(turns=10)
+
 if __name__ == '__main__':
     execute_task1()
+    print('====================')
+    execute_task2()

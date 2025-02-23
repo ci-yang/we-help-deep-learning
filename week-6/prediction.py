@@ -146,6 +146,26 @@ class MSELoss(Loss):
 
 
 @dataclass(slots=True)
+class BCELoss(Loss):
+    def calculate_total_loss(self, outputs: list[float], expects: list[float]) -> float:
+        epsilon = 1e-15
+        return -sum(
+            expect * math.log(max(min(output, 1 - epsilon), epsilon))
+            + (1 - expect) * math.log(max(min(1 - output, 1 - epsilon), epsilon))
+            for output, expect in zip(outputs, expects)
+        )
+
+    def calculate_gradients(
+        self, outputs: list[float], expects: list[float]
+    ) -> list[float]:
+        epsilon = 1e-15
+        return [
+            -expect / (max(output, epsilon)) + (1 - expect) / (max(1 - output, epsilon))
+            for output, expect in zip(outputs, expects)
+        ]
+
+
+@dataclass(slots=True)
 class Network:
     layers: list[Layer]
     network_type: str
@@ -278,6 +298,98 @@ def create_network() -> Network:
     )
 
 
+@dataclass
+class TitanicDataSet:
+    def __init__(self, file_path: str):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(current_dir, file_path)
+        self.data = self._read_csv(data_path)
+        self._preprocess_data()
+
+    def _read_csv(self, file_path: str) -> List[dict]:
+        with open(file_path, "r") as file:
+            return list(csv.DictReader(file))
+
+    def _preprocess_data(self):
+        self.age_mean = sum(float(row["Age"]) for row in self.data if row["Age"]) / sum(
+            1 for row in self.data if row["Age"]
+        )
+        self.fare_mean = sum(
+            float(row["Fare"]) for row in self.data if row["Fare"]
+        ) / sum(1 for row in self.data if row["Fare"])
+
+        for row in self.data:
+            row["Age"] = float(row["Age"]) if row["Age"] else self.age_mean
+            row["Fare"] = float(row["Fare"]) if row["Fare"] else self.fare_mean
+            row["Embarked"] = row["Embarked"] if row["Embarked"] else "S"
+
+        self.age_std = math.sqrt(
+            sum((float(row["Age"]) - self.age_mean) ** 2 for row in self.data)
+            / len(self.data)
+        )
+        self.fare_std = math.sqrt(
+            sum((float(row["Fare"]) - self.fare_mean) ** 2 for row in self.data)
+            / len(self.data)
+        )
+
+    def normalize_value(self, value: float, mean: float, std: float) -> float:
+        return (value - mean) / std
+
+    def encode_data(self) -> Tuple[List[List[float]], List[List[float]]]:
+        encoded_inputs = []
+        encoded_targets = []
+
+        for row in self.data:
+            features = []
+            features.append(1.0 if row["Sex"] == "male" else 0.0)
+
+            pclass = int(row["Pclass"])
+            features.extend([1.0 if i == pclass else 0.0 for i in range(1, 4)])
+
+            features.append(
+                self.normalize_value(float(row["Age"]), self.age_mean, self.age_std)
+            )
+            features.append(
+                self.normalize_value(float(row["Fare"]), self.fare_mean, self.fare_std)
+            )
+
+            embarked_map = {"S": [1, 0, 0], "C": [0, 1, 0], "Q": [0, 0, 1]}
+            features.extend(embarked_map.get(row["Embarked"], [1, 0, 0]))
+
+            encoded_inputs.append(features)
+            encoded_targets.append([float(row["Survived"])])
+
+        return encoded_inputs, encoded_targets
+
+    def get_batches(
+        self, xs: List[List[float]], es: List[List[float]], batch_size: int
+    ) -> Iterator[Tuple[List[List[float]], List[List[float]]]]:
+        indices = list(range(len(xs)))
+        random.shuffle(indices)
+
+        for i in range(0, len(xs), batch_size):
+            batch_indices = indices[i : i + batch_size]
+            batch_xs = [xs[j] for j in batch_indices]
+            batch_es = [es[j] for j in batch_indices]
+            yield batch_xs, batch_es
+
+
+def create_titanic_network(input_size: int) -> Network:
+    return Network(
+        layers=[
+            Layer(
+                weights=he_init(input_size, 8),
+                bias_weights=[0.1] * 8,
+            ),
+            Layer(
+                weights=xavier_init(8, 1),
+                bias_weights=[0.1] * 1,
+            ),
+        ],
+        network_type="binary",
+    )
+
+
 def neural_network_task(task_name: str) -> Callable:
     def decorator(task_func: Callable) -> Callable:
         @wraps(task_func)
@@ -302,6 +414,16 @@ def execute_weight_prediction():
 
     training_data, expected_values = dataset.encode_data()
 
+    print("Before Training Evaluation...")
+    initial_loss = 0
+    for x, e in zip(training_data, expected_values):
+        outputs = network.forward(x)
+        loss = loss_function.calculate_total_loss(outputs, e)
+        initial_loss += loss
+    average_loss = initial_loss / len(training_data)
+    initial_error = dataset.transform_loss_to_weights(average_loss)
+    print(f"Initial Average Error: {initial_error:.2f} pounds\n")
+
     print("Training...")
     for iteration in range(training_iterations):
         total_loss = 0
@@ -325,11 +447,6 @@ def execute_weight_prediction():
             total_loss += batch_loss
             batch_count += 1
 
-        if (iteration + 1) % 10 == 0:
-            average_loss = total_loss / (batch_count * batch_size)
-            error = dataset.transform_loss_to_weights(average_loss)
-            print(f"Iteration {iteration + 1}, Average Error: {error:.2f} pounds")
-
     print("\nFinal Evaluation...")
     final_loss = 0
     final_count = 0
@@ -349,5 +466,88 @@ def execute_weight_prediction():
     print(f"Final Average Error: {final_error:.2f} pounds")
 
 
+@neural_network_task("Titanic Prediction")
+def execute_titanic_prediction():
+    dataset = TitanicDataSet("data/titanic.csv")
+    training_data, expected_values = dataset.encode_data()
+    input_size = len(training_data[0])
+
+    network = create_titanic_network(input_size)
+    loss_function = BCELoss()
+    learning_rate = 0.01
+    batch_size = 32
+    training_iterations = 100
+
+    print("Before Training Evaluation...")
+    correct_predictions = 0
+    total_predictions = 0
+    initial_loss = 0
+
+    for inputs, expects in zip(training_data, expected_values):
+        outputs = network.forward(inputs)
+        loss = loss_function.calculate_total_loss(outputs, expects)
+        initial_loss += loss
+
+        prediction = 1 if outputs[0] >= 0.5 else 0
+        if prediction == expects[0]:
+            correct_predictions += 1
+        total_predictions += 1
+
+    average_loss = initial_loss / len(training_data)
+    initial_accuracy = correct_predictions / total_predictions
+    print(f"Initial Loss: {average_loss:.4f}")
+    print(f"Initial Accuracy: {initial_accuracy:.2%}\n")
+
+    print("Training...")
+    for _ in range(training_iterations):
+        total_loss = 0
+        batch_count = 0
+        correct_predictions = 0
+        total_predictions = 0
+
+        for batch_inputs, batch_expects in dataset.get_batches(
+            training_data, expected_values, batch_size
+        ):
+            batch_outputs = [network.forward(inputs) for inputs in batch_inputs]
+            batch_loss = sum(
+                loss_function.calculate_total_loss(outputs, expects)
+                for outputs, expects in zip(batch_outputs, batch_expects)
+            )
+
+            for outputs, expects in zip(batch_outputs, batch_expects):
+                prediction = 1 if outputs[0] >= 0.5 else 0
+                if prediction == expects[0]:
+                    correct_predictions += 1
+                total_predictions += 1
+
+            for inputs, expects in zip(batch_inputs, batch_expects):
+                outputs = network.forward(inputs)
+                gradients = loss_function.calculate_gradients(outputs, expects)
+                network.backward(gradients)
+                network.zero_grad(learning_rate)
+
+            total_loss += batch_loss
+            batch_count += 1
+
+    print("\nFinal Evaluation...")
+    correct_predictions = 0
+    total_predictions = 0
+
+    for batch_inputs, batch_expects in dataset.get_batches(
+        training_data, expected_values, batch_size
+    ):
+        batch_outputs = [network.forward(inputs) for inputs in batch_inputs]
+
+        for outputs, expects in zip(batch_outputs, batch_expects):
+            prediction = 1 if outputs[0] >= 0.5 else 0
+            if prediction == expects[0]:
+                correct_predictions += 1
+            total_predictions += 1
+
+    final_accuracy = correct_predictions / total_predictions
+    print(f"Final Accuracy: {final_accuracy:.2%}")
+
+
 if __name__ == "__main__":
     execute_weight_prediction()
+    execute_titanic_prediction()

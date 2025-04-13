@@ -26,11 +26,12 @@ class DocumentProcessor:
 
 @dataclass
 class Doc2VecModel:
-    vector_size: int = 200
-    window_size: int = 2
-    min_count: int = 1
-    workers: int = 4
-    epochs: int = 500
+    vector_size: int = 300
+    window_size: int = 5
+    min_count: int = 5
+    workers: int = 8
+    epochs: int = 1000
+    dm: int = 1
     model: Doc2Vec = field(init=False)
 
     def __post_init__(self):
@@ -40,18 +41,30 @@ class Doc2VecModel:
             min_count=self.min_count,
             workers=self.workers,
             epochs=self.epochs,
-            dm=0,
+            dm=self.dm,
+            dbow_words=1,
+            alpha=0.025,
+            min_alpha=0.0001,
         )
 
     def train(self, documents: List[Document]) -> None:
+        print("🔄 準備訓練資料...")
         tagged_documents = [
             TaggedDocument(words=doc.words, tags=[doc.tag]) for doc in documents
         ]
+
+        print("📚 建立詞彙表...")
         self.model.build_vocab(tagged_documents)
+
+        print(f"📊 詞彙表大小: {len(self.model.wv)}")
+        print(f"📊 文件數量: {len(tagged_documents)}")
+
+        print("🚀 開始訓練模型...")
         self.model.train(
             tagged_documents,
             total_examples=self.model.corpus_count,
             epochs=self.model.epochs,
+            report_delay=1,
         )
 
     def evaluate(self, documents: List[Document]) -> float:
@@ -95,7 +108,7 @@ def execute_doc2vec_training():
     second_similarity = model.evaluate(documents)
 
     if second_similarity >= 0.8:
-        model.save("doc2vec_original_optimized.model")
+        model.save("doc2vec_model.model")
     else:
         print("❌ Second Self-Similarity 未達 80%，模型未儲存。")
 

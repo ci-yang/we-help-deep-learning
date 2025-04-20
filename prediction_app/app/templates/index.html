@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTT 看板分類器</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <div class="card rounded-lg shadow-xl p-8 mb-8">
+            <h1 class="text-3xl font-bold text-white text-center mb-6">PTT 看板分類器</h1>
+            <p class="text-white text-center mb-8">輸入文章標題，預測最適合的看板</p>
+            
+            <div class="flex gap-4">
+                <input type="text" id="titleInput" 
+                    class="flex-1 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="請輸入文章標題...">
+                <button onclick="predictBoard()" 
+                    class="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-purple-100 transition-colors">
+                    預測
+                </button>
+            </div>
+        </div>
+
+        <div id="result" class="card rounded-lg shadow-xl p-8 hidden">
+            <h2 class="text-xl font-semibold text-white mb-4">預測結果</h2>
+            <div class="bg-white rounded-lg p-4">
+                <p class="text-gray-800 mb-2">輸入標題：<span id="inputTitle" class="font-medium"></span></p>
+                <p class="text-gray-800">預測看板：<span id="predictedBoard" class="font-bold text-purple-600"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function predictBoard() {
+            const title = document.getElementById('titleInput').value.trim();
+            if (!title) {
+                alert('請輸入標題');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/model/prediction?title=${encodeURIComponent(title)}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    document.getElementById('inputTitle').textContent = data.input_title;
+                    document.getElementById('predictedBoard').textContent = data.predicted_board;
+                    document.getElementById('result').classList.remove('hidden');
+                } else {
+                    alert('預測失敗：' + data.message);
+                }
+            } catch (error) {
+                alert('發生錯誤：' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

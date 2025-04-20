@@ -13,6 +13,13 @@
             backdrop-filter: blur(10px);
             background: rgba(255, 255, 255, 0.1);
         }
+        .board-button {
+            transition: all 0.2s;
+        }
+        .board-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="gradient-bg min-h-screen flex items-center justify-center p-4">
@@ -34,20 +41,39 @@
 
         <div id="result" class="card rounded-lg shadow-xl p-8 hidden">
             <h2 class="text-xl font-semibold text-white mb-4">預測結果</h2>
-            <div class="bg-white rounded-lg p-4">
+            <div class="bg-white rounded-lg p-4 mb-6">
                 <p class="text-gray-800 mb-2">輸入標題：<span id="inputTitle" class="font-medium"></span></p>
                 <p class="text-gray-800">預測看板：<span id="predictedBoard" class="font-bold text-purple-600"></span></p>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="text-lg font-semibold text-white mb-4">您覺得這個標題更適合哪個看板？</h3>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <button onclick="submitFeedback('Boy-Girl')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">Boy-Girl</button>
+                    <button onclick="submitFeedback('Lifeismoney')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">Lifeismoney</button>
+                    <button onclick="submitFeedback('Military')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">Military</button>
+                    <button onclick="submitFeedback('Tech_Job')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">Tech_Job</button>
+                    <button onclick="submitFeedback('baseball')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">baseball</button>
+                    <button onclick="submitFeedback('c_chat')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">c_chat</button>
+                    <button onclick="submitFeedback('hatepolitics')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">hatepolitics</button>
+                    <button onclick="submitFeedback('pc_shopping')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">pc_shopping</button>
+                    <button onclick="submitFeedback('stock')" class="board-button bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-100">stock</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        let currentTitle = '';
+
         async function predictBoard() {
             const title = document.getElementById('titleInput').value.trim();
             if (!title) {
                 alert('請輸入標題');
                 return;
             }
+
+            currentTitle = title;
 
             try {
                 const response = await fetch(`/api/model/prediction?title=${encodeURIComponent(title)}`);
@@ -59,6 +85,35 @@
                     document.getElementById('result').classList.remove('hidden');
                 } else {
                     alert('預測失敗：' + data.message);
+                }
+            } catch (error) {
+                alert('發生錯誤：' + error.message);
+            }
+        }
+
+        async function submitFeedback(board) {
+            if (!currentTitle) {
+                alert('請先輸入標題並進行預測');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/model/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        title: currentTitle,
+                        label: board
+                    })
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert('感謝您的反饋！');
+                } else {
+                    alert('提交失敗：' + data.message);
                 }
             } catch (error) {
                 alert('發生錯誤：' + error.message);

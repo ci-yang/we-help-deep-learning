@@ -12,10 +12,16 @@ fastapi = "0.109.2"
 uvicorn = "0.27.1"
 jinja2 = "3.1.3"
 python-multipart = "0.0.9"
-scikit-learn = "1.4.0"
+scikit-learn = "1.4.0"  # 較新版本
+scipy = "1.12.0"  # 添加 scipy 依賴
 numpy = "1.26.4"
-torch = "2.2.1"
+torch = {version = "2.2.1", extras = ["cpu"]}  # 較新版本
 gensim = "4.3.2"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]

@@ -2,3 +2,5 @@
 phase2/__pycache__
 *.pyc
 phase3/data
+phase3/handwriting/data
+phase3/object_detection/data
